@@ -8,6 +8,8 @@
 
 /* Inserite eventuali extern modules qui */
 
+extern void ph_asm(char in[], char out[]);
+
 /* ************************************* */
 
 enum { MAXLINES = 400 };
@@ -144,6 +146,8 @@ int main(int argc, char *argv[]) {
     /* Assembly inline:
     Inserite qui il vostro blocco di codice assembly inline o richiamo a funzioni assembly.
     Il blocco di codice prende come input 'bufferin' e deve restituire una variabile stringa 'bufferout_asm' che verrà poi salvata su file. */
+
+    ph_asm(bufferin, bufferout_asm);
 
     toc_asm = current_timestamp();
 
