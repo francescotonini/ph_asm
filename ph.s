@@ -1,24 +1,10 @@
 .section .data
-# Rappresenta la posizione dell'array a cui mi sono fermato
-index:
-  .long 0
-
-# Rappresenta il carattere di termine del file, usato per fermare l'esecuzione
-eof:
-  .ascii "\0"
-
-# TODO: cambia valore, 5 ha senso per debug
-# Rappresenta init nel file di input allo stato corrente
-init:
-  .ascii "5"
-
-# Rappresenta reset nel file di input allo stato corrente
-reset:
-  .ascii "5"
-
-# Rappresenta ph nel file di input allo stato corrente
-ph_value:
-  .byte 000
+st:
+  .ascii "-"
+nck:
+  .ascii "--"
+vlv:
+  .ascii "--"
 
 .section .text
 	.global ph_asm
@@ -28,55 +14,240 @@ ph_asm:
 	pushl %ebp
 	movl %esp, %ebp
 
+  # preparo registri
   # eax e ebx contengono l'indirizzo di bufferin/bufferout_asm
   movl 8(%ebp), %eax
   movl 12(%ebp), %ebx
+  mov $0, %dx
 
-  call getInput
-  call setOutput
+  call start
 
 	# ripristino ebp ed esco
 	popl %ebp
 	ret
 
-getInput:
-  # Sposto l'indice in un registro
-  movl index, %ecx
+start:
+  # Devo capire se sono a fine array (EOF)
+  # in tal caso esco, altrimenti chiamo
+  # funzione per controllo init
 
-  # Recupero primi 4 byte della linea corrente
-  movl (%eax, %ecx, 1), %edx
-
-  # Muovo il primo byte (che corrisponde a init) nella variabile init
-  movb %dl, init
-
-  # Effettuo shift di 8 bit per raggiungere il terzo byte,
-  # che corrisponde a reset e lo copio nella variabile reset
-  sarl $8, %edx
-  movb %dh, reset
-
+  movb (%eax), %cl
+  cmpb $0, %cl
+  jne checkInit
   ret
 
-setOutput:
-  movl index, %ecx
-  movl (%ebx, %ecx, 1), %edx
+checkInit:
+  movb (%eax), %cl
+  cmpb $48, %cl
 
-  movb init, %dl
-  movb reset, %dh
+  # Controllo reset se init != 0
+  jne checkReset
 
-  # Ricopia in memoria
-  movl %edx, (%ebx, %ecx, 1)
-
+  # Preparo output "vuoto"
+  movb $45, st
+  leal vlv, %esi
+  movb $45, 1(%esi)
+  movb $45, (%esi)
+  leal nck, %esi
+  movb $45, 1(%esi)
+  movb $45, (%esi)
+  jmp print
   ret
 
-# copy:
-#  movl index, %ecx
-#
-#  movl (%eax, ecx, 1), %edx
-#  movb %dl, (%ebx, %ecx, 1)
-#
-#  # Va avanti
-#  addl $1, index
-#  cmpb %dl, eof
-#  jnz copy
-#
-#  ret
+checkReset:
+  movb 2(%eax), %cl
+  cmpb $49, %cl
+
+  # Controllo ph se reset != 1
+  jne checkPH
+
+  # Preparo output "vuoto"
+  movb $45, st
+  leal vlv, %esi
+  movb $45, 1(%esi)
+  movb $45, (%esi)
+  leal nck, %esi
+  movb $45, 1(%esi)
+  movb $45, (%esi)
+  jmp print
+  ret
+
+checkPH:
+  # Recupero terza cifra ph
+  movb 4(%eax), %cl
+  cmpb $49, %cl
+
+  # Se la terza cifra è > 1, la soluzione è basica
+  jge checkBasic
+
+  # Recupero seconda cifra ph
+  movb 5(%eax), %cl
+  cmpb $54, %cl
+
+  # Se la seconda cifra è < 6, la soluzione è acida
+  jl checkAcid
+
+  cmpb $56, %cl
+
+  # Se la seconda cifra è <= 8 (e >= 6), la soluzione è neutra
+  jle checkNeutral
+
+  # Altrimenti è basica
+  jg checkBasic
+  ret
+
+checkBasic:
+  cmpb $66, st
+  movb $66, st
+
+  # Se lo stato è variato, pulisco nck/vlv e ricomincio
+  jne clear
+
+  # Incremento nck
+  inc %dx
+  cmp $5, %dx
+
+  # Converto nck in ascii
+  pushl %eax
+  pushl %edx
+  leal nck, %esi
+  mov %dx, %ax
+  movb $10, %dl
+  divb %dl
+  addb $48, %ah
+  movb %ah, 1(%esi)
+  movzb %al, %ax
+  divb %dl
+  addb $48, %ah
+  movb %ah, (%esi)
+  popl %edx
+  popl %eax
+
+  cmp $5, %dx
+  jl print
+
+  leal vlv, %esi
+  movb $83, 1(%esi)
+  movb $65, (%esi)
+
+  jmp print
+  ret
+
+checkAcid:
+  cmpb $65, st
+  movb $65, st
+
+  # Se lo stato è variato, pulisco nck/vlv e ricomincio
+  jne clear
+
+  # Incremento nck
+  inc %dx
+  cmp $5, %dx
+
+  # Converto nck in ascii
+  pushl %eax
+  pushl %edx
+  leal nck, %esi
+  mov %dx, %ax
+  movb $10, %dl
+  divb %dl
+  addb $48, %ah
+  movb %ah, 1(%esi)
+  movzb %al, %ax
+  divb %dl
+  addb $48, %ah
+  movb %ah, (%esi)
+  popl %edx
+  popl %eax
+
+  cmp $5, %dx
+  jl print
+
+  leal vlv, %esi
+  movb $83, 1(%esi)
+  movb $66, (%esi)
+
+  jmp print
+  ret
+
+checkNeutral:
+  movb $78, st
+  movb $78, st
+
+  # Se lo stato è variato, pulisco nck/vlv e ricomincio
+  jne clear
+
+  # Incremento nck
+  inc %dx
+  cmp $5, %dx
+
+  # Converto nck in ascii
+  pushl %eax
+  pushl %edx
+  leal nck, %esi
+  mov %dx, %ax
+  movb $10, %dl
+  divb %dl
+  addb $48, %ah
+  movb %ah, 1(%esi)
+  movzb %al, %ax
+  divb %dl
+  addb $48, %ah
+  movb %ah, (%esi)
+  popl %edx
+  popl %eax
+
+  cmp $5, %dx
+  jl print
+
+  leal vlv, %esi
+  movb $83, 1(%esi)
+  movb $65, (%esi)
+
+  jmp print
+  ret
+
+clear:
+  mov $0, %dx
+
+  leal vlv, %esi
+  movb $45, 1(%esi)
+  movb $45, (%esi)
+  leal nck, %esi
+  movb $48, 1(%esi)
+  movb $48, (%esi)
+  jmp print
+  ret
+
+print:
+  # Salvo eax, sarà ripristinato in seguito
+  pushl %eax
+
+  # Stampa st
+  movb st, %al
+  movb %al, (%ebx)
+
+  # Stampa divisore
+  movb $44, 1(%ebx)
+
+  # Stampa nck
+  mov nck, %ax
+  mov %ax, 2(%ebx)
+
+  # Stampa divisore
+  movb $44, 4(%ebx)
+
+  # Stampa vlv
+  mov vlv, %ax
+  mov %ax, 5(%ebx)
+  movb $10, 7(%ebx)
+
+  # Ripritino eax
+  popl %eax
+
+  # Incremento indirizzi
+  addl $8, %eax
+  addl $8, %ebx
+
+  jmp start
+  ret
