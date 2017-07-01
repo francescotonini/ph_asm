@@ -37,8 +37,7 @@ start:
   ret
 
 checkInit:
-  movb (%eax), %cl
-  cmpb $48, %cl
+  cmpb $48, (%eax)
 
   # Controllo reset se init != 0
   jne checkReset
@@ -55,8 +54,7 @@ checkInit:
   ret
 
 checkReset:
-  movb 2(%eax), %cl
-  cmpb $49, %cl
+  cmpb $49, 2(%eax)
 
   # Controllo ph se reset != 1
   jne checkPH
@@ -73,21 +71,19 @@ checkReset:
   ret
 
 checkPH:
-  # Recupero terza cifra ph
-  movb 4(%eax), %cl
-  cmpb $49, %cl
+  # Recupero terza cifra phs
+  cmpb $49, 4(%eax)
 
   # Se la terza cifra è > 1, la soluzione è basica
   jge checkBasic
 
   # Recupero seconda cifra ph
-  movb 5(%eax), %cl
-  cmpb $54, %cl
+  cmpb $54, 5(%eax)
 
   # Se la seconda cifra è < 6, la soluzione è acida
   jl checkAcid
 
-  cmpb $56, %cl
+  cmpb $56, 5(%eax)
 
   # Se la seconda cifra è <= 8 (e >= 6), la soluzione è neutra
   jle checkNeutral
@@ -142,7 +138,6 @@ checkAcid:
 
   # Incremento nck
   inc %dx
-  cmp $5, %dx
 
   # Converto nck in ascii
   pushl %eax
@@ -179,7 +174,6 @@ checkNeutral:
 
   # Incremento nck
   inc %dx
-  cmp $5, %dx
 
   # Converto nck in ascii
   pushl %eax
