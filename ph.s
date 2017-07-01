@@ -166,7 +166,7 @@ checkAcid:
   ret
 
 checkNeutral:
-  movb $78, st
+  cmpb $78, st
   movb $78, st
 
   # Se lo stato è variato, pulisco nck/vlv e ricomincio
