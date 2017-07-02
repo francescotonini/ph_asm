@@ -195,8 +195,8 @@ checkNeutral:
   jl print
 
   leal vlv, %esi
-  movb $83, 1(%esi)
-  movb $65, (%esi)
+  movb $45, 1(%esi)
+  movb $45, (%esi)
 
   jmp print
   ret
