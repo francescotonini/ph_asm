@@ -8,7 +8,7 @@
 
 /* Inserite eventuali extern modules qui */
 
-extern void ph_asm(char in[], char out[]);
+extern void controllore(char in[], char out[]);
 
 /* ************************************* */
 
@@ -18,7 +18,7 @@ long long current_timestamp() {
     struct timespec tp;
 	clock_gettime(CLOCK_REALTIME, &tp);
 	/* te.tv_nsec nanoseconds divide by 1000 to get microseconds*/
-	long long nanoseconds = tp.tv_sec*1000LL + tp.tv_nsec; // caculate nanoseconds  
+	long long nanoseconds = tp.tv_sec*1000LL + tp.tv_nsec; // caculate nanoseconds
     return nanoseconds;
 }
 
@@ -147,7 +147,7 @@ int main(int argc, char *argv[]) {
     Inserite qui il vostro blocco di codice assembly inline o richiamo a funzioni assembly.
     Il blocco di codice prende come input 'bufferin' e deve restituire una variabile stringa 'bufferout_asm' che verrà poi salvata su file. */
 
-    ph_asm(bufferin, bufferout_asm);
+    controllore(bufferin, bufferout_asm);
 
     toc_asm = current_timestamp();
 

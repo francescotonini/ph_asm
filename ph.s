@@ -13,10 +13,10 @@ vlv:
   .ascii "--"
 
 .section .text
-	.global ph_asm
+	.global controllore
 
 # funzione "main"
-ph_asm:
+controllore:
 
 	# salvo ebp corrente
   # ebp prende il valore di esp
