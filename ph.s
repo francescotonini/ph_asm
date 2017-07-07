@@ -3,7 +3,6 @@
 
 # "main"
 controllore:
-
 	# salvo ebp corrente
 	pushl %ebp
 
@@ -14,7 +13,6 @@ controllore:
   pushl %eax
   pushl %ebx
   pushl %ecx
-  pushl %edx
   pushl %edi
   pushl %esi
 
@@ -23,15 +21,19 @@ controllore:
   # cl sarà usato come contatore
   # bl conterrà st
   # bh conterrà la seconda cifra di vlv
-  # edx ed eax saranno ad uso temporaneo
+  # eax sarà usato in diversi contesti
   movl 8(%ebp), %esi
   movl 12(%ebp), %edi
   xorl %ecx, %ecx
   xorl %eax, %eax
-  xorl %edx, %edx
   xorl %ebx, %ebx
 
-  # richiamo funzione di "elaborazione"
+  # verifico se il file è vuoto
+  cmpb $0, (%esi)
+
+  # se il file è vuoto termino
+  # altrimenti salto a funzione di "elaborazione"
+  je end
   jmp start
 
 # funzione di controllo init, reset e ph
@@ -64,12 +66,11 @@ start:
   cmpb $54, 5(%esi)
   jl checkAcid
 
-  # recuoerp seconda cifra ph
-
+  # recuoero seconda cifra ph
+  # 56 è 8 in ascii
+  # Se la seconda cifra è < 8 (e > 6), la soluzione è neutra
   cmpb $56, 5(%esi)
   jl checkNeutral
-  # 56 è 8 in ascii
-  # Se la seconda cifra è < 8 (e > 6), la soluzione è acida
 
   # sommo seconda e prima cifra del ph, per stabile se è uguale o maggiore ad 80
   # Se la somma tra la seconda cifra e la terza è <= 80, la soluzione è neutra
@@ -157,6 +158,10 @@ checkNeutral:
 
 # stamp output "vuoto"
 printReset:
+  # azzero nck, vlv e st
+  xorb %cl, %cl
+  xor %bx, %bx
+
   # stampa st
   movb $45, (%edi)
 
@@ -185,8 +190,9 @@ printReset:
 # pulisco nck e vlv a seguito di una
 # variazione di ph
 printClear:
-  # azzero nck
-  mov $0, %cl
+  # azzero nck e vlv
+  xorb %cl, %cl
+  xorb %bh, %bh
 
   # stampa st
   movb %bl, (%edi)
@@ -238,7 +244,7 @@ printStatus:
 
   # Stampa vlv
   cmpb $65, %bh
-  jge printVales
+  jge printValves
 
   movb $45, 5(%edi)
   movb $45, 6(%edi)
@@ -251,7 +257,7 @@ printStatus:
   # da analizzare
   jmp end
 
-printVales:
+printValves:
   # Stampa vlv
   movb %bh, 5(%edi)
   movb $83, 6(%edi)
@@ -277,7 +283,6 @@ end:
   # altrimenti ripristino registri
   popl %esi
   popl %edi
-  popl %edx
   popl %ecx
   popl %ebx
   popl %eax
