@@ -1,325 +1,285 @@
-.section .data
-# Rappresenta il ph nello stato precedente
-# all'esecuzione attuale
-st:
-  .ascii "-"
-# Rappresenta il contatore espresso
-# in ascii (il contatore reale è in %dx)
-nck:
-  .ascii "--"
-# Rappresenta le valvole nello stato precedente
-# all'esecuzione attuale
-vlv:
-  .ascii "--"
-
 .section .text
 	.global controllore
 
-# funzione "main"
+# "main"
 controllore:
 
 	# salvo ebp corrente
-  # ebp prende il valore di esp
 	pushl %ebp
+
+  # ebp prende il valore di esp
 	movl %esp, %ebp
 
-  # salvo stato dei registri che utilizzerò
+  # salvo stato dei registri, saranno ripristinati a fine esecuzione
   pushl %eax
   pushl %ebx
   pushl %ecx
   pushl %edx
+  pushl %edi
+  pushl %esi
 
   # preparo registri
-  # eax e ebx contengono l'indirizzo di bufferin/bufferout_asm
-  movl 8(%ebp), %eax
-  movl 12(%ebp), %ebx
+  # esi e edi contengono l'indirizzo di bufferin/bufferout_asm
+  # cl sarà usato come contatore
+  # bl conterrà st
+  # bh conterrà la seconda cifra di vlv
+  # edx ed eax saranno ad uso temporaneo
+  movl 8(%ebp), %esi
+  movl 12(%ebp), %edi
+  xorl %ecx, %ecx
+  xorl %eax, %eax
+  xorl %edx, %edx
+  xorl %ebx, %ebx
 
-  # richiamo funzione che eseguirà i primi controlli
-  # su bufferin
-  call start
+  # richiamo funzione di "elaborazione"
+  jmp start
 
-	# ripristino registri ed esco
-  popl %edx
-  popl %ecx
-  popl %ebx
-  popl %eax
-	popl %ebp
-	ret
-
-# verifica se abbiamo raggiunto la fine
-# dell'array. In caso negativo richiama
-# una funzione per il controllo del campo init
+# funzione di controllo init, reset e ph
 start:
-  movb (%eax), %cl
-  cmpb $0, %cl
-  jne checkInit
-  ret
+  # riga esempio
+  # 1,0,120
+  # init,reset,ph
 
-# verifica il valore di init (primo elemento riga)
-# se è diverso da 0 (quindi la macchina è accesa)
-# richiamo funzione per il controllo di reset.
-# se init è uguale a 0, reimposto gli output e richiamo
-# la funzione di stampa
-checkInit:
   # comparo $48 (ovvero 0 in ascii) con il primo byte
-  # di eax
-  cmpb $48, (%eax)
+  # di esi (init)
+  # se è 0 (48 in ascii) la macchina è spenta e l'output azzerato
+  cmpb $48, (%esi)
+  je printReset
 
-  # passo al controllo di reset se init è diverso da 0
-  jne checkReset
+  # comparo $49 (ovvero 1 in ascii) con il terzo byte
+  # di esi (reset)
+  # se è 1 (49 in ascii) la macchina è in stato di reset e l'output va azzerato
+  cmpb $49, 2(%esi)
+  je printReset
 
-  # Reimposto l'output
-  # 45 corrisponde a - in ascii
-  movb $45, st
-  leal vlv, %esi
-  movb $45, 1(%esi)
-  movb $45, (%esi)
-  leal nck, %esi
-  movb $45, 1(%esi)
-  movb $45, (%esi)
-  jmp print
-  ret
-
-# verifica il valore di reset (terzo elemento riga)
-# se è diverso da 1 (quindi la macchina è in esecuzione)
-# richiamo funzione per il controllo del ph.
-# se reset è uguale a 1, reimposto gli output
-# e richiamo la funzione di stampa
-checkReset:
-  # 49 corrisponde a 1 in ascii
-  cmpb $49, 2(%eax)
-
-  # passo al controllo del ph se reset è diverso da 1
-  jne checkPH
-
-  # Reimposto l'output
-  # 45 corrisponde a - in ascii
-  movb $45, st
-  leal vlv, %esi
-  movb $45, 1(%esi)
-  movb $45, (%esi)
-  leal nck, %esi
-  movb $45, 1(%esi)
-  movb $45, (%esi)
-  jmp print
-  ret
-
-# verifico il valore di ph.
-checkPH:
-  # Recupero terza cifra ph
+  # recupero terza cifra ph
   # 49 è 1 in ascii
-  cmpb $49, 4(%eax)
-
   # Se la terza cifra è >= 1, la soluzione è basica
+  cmpb $49, 4(%esi)
   jge checkBasic
 
-  # Recupero seconda cifra ph
+  # recupero seconda cifra ph
   # 54 è 6 in ascii
-  cmpb $54, 5(%eax)
-
   # Se la seconda cifra è < 6, la soluzione è acida
+  cmpb $54, 5(%esi)
   jl checkAcid
 
+  # recuoerp seconda cifra ph
+
+  cmpb $56, 5(%esi)
+  jl checkNeutral
   # 56 è 8 in ascii
-  cmpb $56, 5(%eax)
+  # Se la seconda cifra è < 8 (e > 6), la soluzione è acida
 
-  # Se la seconda cifra è <= 8 (e >= 6), la soluzione è neutra
-  jle checkNeutral
-
+  # sommo seconda e prima cifra del ph, per stabile se è uguale o maggiore ad 80
+  # Se la somma tra la seconda cifra e la terza è <= 80, la soluzione è neutra
+  # 104 è la somma di 8 + 0 (codificato in ascii)
   # Se non ho ancora effettuato salti, allora la soluzione
   # è basica
-  jg checkBasic
-  ret
+  movb 5(%esi), %al
+  addb 6(%esi), %al
+  cmpb $104, %al
+  jle checkNeutral
+  jmp checkBasic
 
 # elabora ph basico
 checkBasic:
   # Comparo lo stato precedente con il presente
-  cmpb $66, st
+  cmpb $66, %bl
 
   # Aggiorno stato
-  movb $66, st
+  movb $66, %bl
 
   # Se lo stato è variato, pulisco nck/vlv e ricomincio
   # Altrimenti procedo col calcolo di nck e delle valvole
-  jne clear
+  jne printClear
 
   # Incremento nck
-  inc %dx
-  cmp $5, %dx
-
-  # Converto nck in ascii
-  pushl %eax
-  pushl %edx
-  leal nck, %esi
-  mov %dx, %ax
-  movb $10, %dl
-  divb %dl
-  addb $48, %ah
-  movb %ah, 1(%esi)
-  movzb %al, %ax
-  divb %dl
-  addb $48, %ah
-  movb %ah, (%esi)
-  popl %edx
-  popl %eax
-
   # Verifico se ho superato i 5 cicli di clock
   # (vedi specifiche)
-  cmp $5, %dx
-
   # Se non li ho superati,
   # stampo e non tocco le valvole
-  jl print
+  incb %cl
+  cmpb $5, %cl
+  jl printStatus
 
   # Se li ho superati modifico le valvole
-  # e stamp
-  leal vlv, %esi
-  movb $83, 1(%esi)
-  movb $65, (%esi)
-
-  jmp print
-  ret
+  # e stampo
+  movb $65, %bh
+  jmp printStatus
 
 # elabora ph acido
 checkAcid:
   # Comparo lo stato precedente con il presente
-  cmpb $65, st
+  cmpb $65, %bl
 
   # Aggiorno stato
-  movb $65, st
+  movb $65, %bl
 
   # Se lo stato è variato, pulisco nck/vlv e ricomincio
   # Altrimenti procedo col calcolo di nck e delle valvole
-  jne clear
+  jne printClear
 
   # Incremento nck
-  inc %dx
-
-  # Converto nck in ascii
-  pushl %eax
-  pushl %edx
-  leal nck, %esi
-  mov %dx, %ax
-  movb $10, %dl
-  divb %dl
-  addb $48, %ah
-  movb %ah, 1(%esi)
-  movzb %al, %ax
-  divb %dl
-  addb $48, %ah
-  movb %ah, (%esi)
-  popl %edx
-  popl %eax
-
   # Verifico se ho superato i 5 cicli di clock
   # (vedi specifiche)
-  cmp $5, %dx
-
   # Se non li ho superati,
   # stampo e non tocco le valvole
-  jl print
+  incb %cl
+  cmp $5, %cl
+  jl printStatus
 
   # Se li ho superati modifico le valvole
   # e stampo
-  leal vlv, %esi
-  movb $83, 1(%esi)
-  movb $66, (%esi)
-
-  jmp print
-  ret
+  movb $66, %bh
+  jmp printStatus
 
 # elabora ph neutro
 checkNeutral:
   # Comparo lo stato precedente con il presente
-  cmpb $78, st
+  cmpb $78, %bl
 
   # Aggiorno stato
-  movb $78, st
+  movb $78, %bl
 
   # Se lo stato è variato, pulisco nck/vlv e ricomincio
   # Altrimenti procedo col calcolo di nck
-  jne clear
+  jne printClear
 
   # Incremento nck
-  inc %dx
-
-  # Converto nck in ascii
-  pushl %eax
-  pushl %edx
-  leal nck, %esi
-  mov %dx, %ax
-  movb $10, %dl
-  divb %dl
-  addb $48, %ah
-  movb %ah, 1(%esi)
-  movzb %al, %ax
-  divb %dl
-  addb $48, %ah
-  movb %ah, (%esi)
-  popl %edx
-  popl %eax
+  inc %cl
 
   # Reimposto le valvole
-  leal vlv, %esi
-  movb $45, 1(%esi)
-  movb $45, (%esi)
+  movb $45, %bh
 
   # Stampo
-  jmp print
-  ret
+  jmp printStatus
+
+# stamp output "vuoto"
+printReset:
+  # stampa st
+  movb $45, (%edi)
+
+  # stampa divisore
+  movb $44, 1(%edi)
+
+  # stampa nck
+  movb $45, 2(%edi)
+  movb $45, 3(%edi)
+
+  # stampa divisore
+  movb $44, 4(%edi)
+
+  # stampa vlv
+  movb $45, 5(%edi)
+  movb $45, 6(%edi)
+
+  # fine riga
+  movb $10, 7(%edi)
+
+  # salto alla funzione di termine,
+  # che controllerà se ci sono altre righe
+  # da analizzare
+  jmp end
 
 # pulisco nck e vlv a seguito di una
 # variazione di ph
-clear:
+printClear:
   # azzero nck
-  mov $0, %dx
+  mov $0, %cl
 
-  # reimposto vlv e nck
-  leal vlv, %esi
-  movb $45, 1(%esi)
-  movb $45, (%esi)
-  leal nck, %esi
-  movb $48, 1(%esi)
-  movb $48, (%esi)
+  # stampa st
+  movb %bl, (%edi)
 
-  # stampo
-  jmp print
-  ret
+  # stampa divisore
+  movb $44, 1(%edi)
+
+  # stampa nck
+  movb $48, 2(%edi)
+  movb $48, 3(%edi)
+
+  # stampa divisore
+  movb $44, 4(%edi)
+
+  # stampa vlv
+  movb $45, 5(%edi)
+  movb $45, 6(%edi)
+
+  # fine riga
+  movb $10, 7(%edi)
+
+  # salto alla funzione di termine,
+  # che controllerà se ci sono altre righe
+  # da analizzare
+  jmp end
 
 # stampo su bufferout e incremento gli indirizzi
 # (ovvero passo alla riga successiva)
-print:
-  # Salvo eax, sarà ripristinato in seguito
-  pushl %eax
+printStatus:
+  # stampa st
+  movb %bl, (%edi)
 
-  # Stampa st
-  movb st, %al
-  movb %al, (%ebx)
+  # stampa divisore
+  movb $44, 1(%edi)
+
+  # Stampo nck in ascii
+  movzb %cl, %ax
+  movb $10, %dl
+  divb %dl
+  addb $48, %ah
+  movb %ah, 3(%edi)
+  movzb %al, %ax
+  divb %dl
+  addb $48, %ah
+  movb %ah, 2(%edi)
 
   # Stampa divisore
-  movb $44, 1(%ebx)
-
-  # Stampa nck
-  mov nck, %ax
-  mov %ax, 2(%ebx)
-
-  # Stampa divisore
-  movb $44, 4(%ebx)
+  movb $44, 4(%edi)
 
   # Stampa vlv
-  mov vlv, %ax
-  mov %ax, 5(%ebx)
-  movb $10, 7(%ebx)
+  cmpb $65, %bh
+  jge printVales
 
-  # Ripritino eax
-  popl %eax
+  movb $45, 5(%edi)
+  movb $45, 6(%edi)
 
-  # Incremento indirizzi
-  addl $8, %eax
-  addl $8, %ebx
+  # fine riga
+  movb $10, 7(%edi)
 
-  # Salto alla funzione di avvio,
+  # salto alla funzione di termine,
   # che controllerà se ci sono altre righe
   # da analizzare
-  jmp start
+  jmp end
+
+printVales:
+  # Stampa vlv
+  movb %bh, 5(%edi)
+  movb $83, 6(%edi)
+
+  # fine riga
+  movb $10, 7(%edi)
+
+  # salto alla funzione di termine,
+  # che controllerà se ci sono altre righe
+  # da analizzare
+  jmp end
+
+end:
+  addl $8, %esi
+  addl $8, %edi
+
+  # verifico se sono a fine file
+  cmpb $0, (%esi)
+
+  # se non sono a fine file ricomincio
+  jne start
+
+  # altrimenti ripristino registri
+  popl %esi
+  popl %edi
+  popl %edx
+  popl %ecx
+  popl %ebx
+  popl %eax
+  popl %ebp
   ret
