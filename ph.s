@@ -43,22 +43,22 @@ start:
   # init,reset,ph
 
   # comparo $48 (ovvero 0 in ascii) con il primo byte
-  # di esi (init)
-  # se è 0 (48 in ascii) la macchina è spenta e l'output azzerato
+  # di esi (cioè init)
+  # se è 0 (48 in ascii) la macchina è spenta e l'output va azzerato
   cmpb $48, (%esi)
   je printReset
 
   # comparo $49 (ovvero 1 in ascii) con il terzo byte
-  # di esi (reset)
+  # di esi (cioè reset)
   # se è 1 (49 in ascii) la macchina è in stato di reset e l'output va azzerato
   cmpb $49, 2(%esi)
   je printReset
 
   # recupero terza cifra ph
   # 49 è 1 in ascii
-  # Se la terza cifra è >= 1, la soluzione è basica
+  # Se la terza cifra è = 1, la soluzione è basica
   cmpb $49, 4(%esi)
-  jge checkBasic
+  je checkBasic
 
   # recupero seconda cifra ph
   # 54 è 6 in ascii
@@ -246,6 +246,7 @@ printStatus:
   cmpb $65, %bh
   jge printValves
 
+	# stampa valvole "azzerate"
   movb $45, 5(%edi)
   movb $45, 6(%edi)
 
