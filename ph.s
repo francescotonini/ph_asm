@@ -34,7 +34,6 @@ controllore:
   # se il file è vuoto termino
   # altrimenti salto a funzione di "elaborazione"
   je end
-  jmp start
 
 # funzione di controllo init, reset e ph
 start:
@@ -42,17 +41,11 @@ start:
   # 1,0,120
   # init,reset,ph
 
-  # comparo $48 (ovvero 0 in ascii) con il primo byte
-  # di esi (cioè init)
-  # se è 0 (48 in ascii) la macchina è spenta e l'output va azzerato
-  cmpb $48, (%esi)
-  je printReset
-
-  # comparo $49 (ovvero 1 in ascii) con il terzo byte
-  # di esi (cioè reset)
-  # se è 1 (49 in ascii) la macchina è in stato di reset e l'output va azzerato
-  cmpb $49, 2(%esi)
-  je printReset
+  # verifico se i primi 4 byte della riga sono "1,0,", ovvero
+  # macchina accesa e operativa. In tal caso procedo, altrimenti
+  # stampo output "reset"
+  cmpl $741354545, (%esi)
+  jne printReset
 
   # recupero terza cifra ph
   # 49 è 1 in ascii
@@ -72,7 +65,7 @@ start:
   cmpb $56, 5(%esi)
   jl checkNeutral
 
-  # sommo seconda e prima cifra del ph, per stabile se è uguale o maggiore ad 80
+  # sommo seconda e prima cifra del ph, per stabilire se è uguale o maggiore ad 80
   # Se la somma tra la seconda cifra e la terza è <= 80, la soluzione è neutra
   # 104 è la somma di 8 + 0 (codificato in ascii)
   # Se non ho ancora effettuato salti, allora la soluzione
@@ -81,7 +74,6 @@ start:
   addb 6(%esi), %al
   cmpb $104, %al
   jle checkNeutral
-  jmp checkBasic
 
 # elabora ph basico
 checkBasic:
@@ -96,18 +88,45 @@ checkBasic:
   jne printClear
 
   # Incremento nck
-  # Verifico se ho superato i 5 cicli di clock
-  # (vedi specifiche)
-  # Se non li ho superati,
-  # stampo e non tocco le valvole
   incb %cl
-  cmpb $5, %cl
-  jl printStatus
 
-  # Se li ho superati modifico le valvole
-  # e stampo
-  movb $65, %bh
-  jmp printStatus
+	# stampa st
+	movb %bl, (%edi)
+
+	# stampa divisore
+	movb $44, 1(%edi)
+
+	# Stampo nck in ascii
+	movzb %cl, %ax
+	movb $10, %dl
+	divb %dl
+	addb $48, %ah
+	movb %ah, 3(%edi)
+	movzb %al, %ax
+	divb %dl
+	addb $48, %ah
+	movb %ah, 2(%edi)
+
+	# Stampa divisore
+	movb $44, 4(%edi)
+
+	# Verifico se ho superato i 5 cicli di clock
+	# (vedi specifiche)
+	# se non li ho superati stampo valvole chiuse
+  cmpb $5, %cl
+	jl printValves
+
+	# stampa valvole "AS"
+	movb $65, 5(%edi)
+	movb $83, 6(%edi)
+
+	# fine riga
+	movb $10, 7(%edi)
+
+	# salto alla funzione di termine,
+	# che controllerà se ci sono altre righe
+	# da analizzare
+	jmp end
 
 # elabora ph acido
 checkAcid:
@@ -121,19 +140,46 @@ checkAcid:
   # Altrimenti procedo col calcolo di nck e delle valvole
   jne printClear
 
-  # Incremento nck
-  # Verifico se ho superato i 5 cicli di clock
-  # (vedi specifiche)
-  # Se non li ho superati,
-  # stampo e non tocco le valvole
+	# Incremento nck
   incb %cl
-  cmp $5, %cl
-  jl printStatus
 
-  # Se li ho superati modifico le valvole
-  # e stampo
-  movb $66, %bh
-  jmp printStatus
+	# stampa st
+	movb %bl, (%edi)
+
+	# stampa divisore
+	movb $44, 1(%edi)
+
+	# Stampo nck in ascii
+	movzb %cl, %ax
+	movb $10, %dl
+	divb %dl
+	addb $48, %ah
+	movb %ah, 3(%edi)
+	movzb %al, %ax
+	divb %dl
+	addb $48, %ah
+	movb %ah, 2(%edi)
+
+	# Stampa divisore
+	movb $44, 4(%edi)
+
+	# Verifico se ho superato i 5 cicli di clock
+	# (vedi specifiche)
+	# se non li ho superati stampo valvole chiuse
+  cmpb $5, %cl
+	jl printValves
+
+	# stampa valvole "BS"
+	movb $66, 5(%edi)
+	movb $83, 6(%edi)
+
+	# fine riga
+	movb $10, 7(%edi)
+
+	# salto alla funzione di termine,
+	# che controllerà se ci sono altre righe
+	# da analizzare
+	jmp end
 
 # elabora ph neutro
 checkNeutral:
@@ -150,11 +196,37 @@ checkNeutral:
   # Incremento nck
   inc %cl
 
-  # Reimposto le valvole
-  movb $45, %bh
+	# stampa st
+	movb %bl, (%edi)
 
-  # Stampo
-  jmp printStatus
+	# stampa divisore
+	movb $44, 1(%edi)
+
+	# Stampo nck in ascii
+	movzb %cl, %ax
+	movb $10, %dl
+	divb %dl
+	addb $48, %ah
+	movb %ah, 3(%edi)
+	movzb %al, %ax
+	divb %dl
+	addb $48, %ah
+	movb %ah, 2(%edi)
+
+	# Stampa divisore
+	movb $44, 4(%edi)
+
+	# stampa valvole "azzerate"
+	movb $45, 5(%edi)
+	movb $45, 6(%edi)
+
+	# fine riga
+	movb $10, 7(%edi)
+
+	# salto alla funzione di termine,
+	# che controllerà se ci sono altre righe
+	# da analizzare
+	jmp end
 
 # stamp output "vuoto"
 printReset:
@@ -162,25 +234,11 @@ printReset:
   xorb %cl, %cl
   xor %bx, %bx
 
-  # stampa st
-  movb $45, (%edi)
+  # stampa -,--
+  movl $757935149, (%edi)
 
-  # stampa divisore
-  movb $44, 1(%edi)
-
-  # stampa nck
-  movb $45, 2(%edi)
-  movb $45, 3(%edi)
-
-  # stampa divisore
-  movb $44, 4(%edi)
-
-  # stampa vlv
-  movb $45, 5(%edi)
-  movb $45, 6(%edi)
-
-  # fine riga
-  movb $10, 7(%edi)
+  # stampa ,--\n
+  movl $170732844, 4(%edi)
 
   # salto alla funzione di termine,
   # che controllerà se ci sono altre righe
@@ -197,58 +255,11 @@ printClear:
   # stampa st
   movb %bl, (%edi)
 
-  # stampa divisore
-  movb $44, 1(%edi)
+  # stampa ,--,
+  movl $741355564, 1(%edi)
 
-  # stampa nck
-  movb $48, 2(%edi)
-  movb $48, 3(%edi)
-
-  # stampa divisore
-  movb $44, 4(%edi)
-
-  # stampa vlv
-  movb $45, 5(%edi)
-  movb $45, 6(%edi)
-
-  # fine riga
-  movb $10, 7(%edi)
-
-  # salto alla funzione di termine,
-  # che controllerà se ci sono altre righe
-  # da analizzare
-  jmp end
-
-# stampo su bufferout e incremento gli indirizzi
-# (ovvero passo alla riga successiva)
-printStatus:
-  # stampa st
-  movb %bl, (%edi)
-
-  # stampa divisore
-  movb $44, 1(%edi)
-
-  # Stampo nck in ascii
-  movzb %cl, %ax
-  movb $10, %dl
-  divb %dl
-  addb $48, %ah
-  movb %ah, 3(%edi)
-  movzb %al, %ax
-  divb %dl
-  addb $48, %ah
-  movb %ah, 2(%edi)
-
-  # Stampa divisore
-  movb $44, 4(%edi)
-
-  # Stampa vlv
-  cmpb $65, %bh
-  jge printValves
-
-	# stampa valvole "azzerate"
-  movb $45, 5(%edi)
-  movb $45, 6(%edi)
+  # stampa --
+  movw $11565, 5(%edi)
 
   # fine riga
   movb $10, 7(%edi)
@@ -259,17 +270,13 @@ printStatus:
   jmp end
 
 printValves:
-  # Stampa vlv
-  movb %bh, 5(%edi)
-  movb $83, 6(%edi)
+	movb $45, 5(%edi)
+	movb $45, 6(%edi)
 
-  # fine riga
-  movb $10, 7(%edi)
+	# fine riga
+	movb $10, 7(%edi)
 
-  # salto alla funzione di termine,
-  # che controllerà se ci sono altre righe
-  # da analizzare
-  jmp end
+	jmp end
 
 end:
   addl $8, %esi
